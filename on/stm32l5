@@ -1,0 +1,11 @@
+#define toolchain
+include("${CMAKE_CURRENT_LIST_DIR}/cortex-m33")
+
+set(DEVICE STM32L552ZETXQ)
+set(DEVICE_FAMILY STM32L5xx)
+#set(TARGET_IMPL ${CMAKE_CURRENT_LIST_DIR}/../target/stm32/stm32l5-prng.c)
+set(TARGET_INCLUDE
+	${CMAKE_CURRENT_SOURCE_DIR}/target/stm32/CMSIS/Include
+	${CMAKE_CURRENT_SOURCE_DIR}/target/stm32/CMSIS/Device/ST/${DEVICE_FAMILY}/Include
+)
+

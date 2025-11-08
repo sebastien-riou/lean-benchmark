@@ -1,0 +1,10 @@
+#define toolchain
+include("${CMAKE_CURRENT_LIST_DIR}/cortex-m4")
+
+set(DEVICE STM32F411RE)
+set(DEVICE_FAMILY STM32F4xx)
+#set(TARGET_INCLUDE
+#	${CMAKE_CURRENT_SOURCE_DIR}/target/stm32/CMSIS/Include
+#	${CMAKE_CURRENT_SOURCE_DIR}/target/stm32/CMSIS/Device/ST/${DEVICE_FAMILY}/Include
+#)
+

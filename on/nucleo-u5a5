@@ -1,0 +1,4 @@
+add_definitions( -DTEST_A2B32_TWIST )
+
+add_definitions( -DHAS_PRINTF )
+include("${CMAKE_CURRENT_LIST_DIR}/../on/stm32u5")

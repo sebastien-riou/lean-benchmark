@@ -1,0 +1,75 @@
+#!/bin/bash
+
+set -ex
+
+PRESET=${1:-minSizeRel}
+
+WCH=`which riscv-wch-elf-gcc || true`
+if [[ ! -z "$WCH" ]]; then
+    # if WCH toolchain seems to be present
+    ./buildit on/ch32v307-wch-elf $PRESET
+fi
+
+EMBED=`which riscv-none-embed-gcc || true`
+if [[ ! -z "$EMBED" ]]; then
+    # if EMBED toolchain seems to be present
+    ./buildit on/ch32v307-none-embed $PRESET
+fi
+
+ARM_NONE_EABI=`which arm-none-eabi-gcc || true`
+if [[ ! -z "$ARM_NONE_EABI" ]]; then
+    # if ARM_NONE_EABI toolchain seems to be present
+    #generic builds, need user to implement accessors
+    ./buildit on/cortex-m0 $PRESET
+    ./buildit on/cortex-m3 $PRESET
+    ./buildit on/cortex-m4 $PRESET
+    ./buildit on/cortex-m7 $PRESET
+    ./buildit on/cortex-m23 $PRESET
+    ./buildit on/cortex-m33 $PRESET
+    ./buildit on/cortex-m35p $PRESET
+    ./buildit on/cortex-m52 $PRESET
+    ./buildit on/cortex-m55 $PRESET
+    ./buildit on/cortex-m85 $PRESET
+    #targeted builds for few specific MCUs
+    ./buildit on/stm32f2 $PRESET
+    ./buildit on/stm32f4 $PRESET
+    ./buildit on/stm32u5 $PRESET
+    ./buildit on/stm32l5 $PRESET
+    #builds with test lib
+    ./buildit on/cw308-f2 $PRESET
+    ./buildit on/nucleo-f411 $PRESET
+    ./buildit on/nucleo-n657 $PRESET
+    ./buildit on/nucleo-u5a5 $PRESET
+fi
+
+RISCV_NONE_ELF=`which riscv-none-elf-gcc || true`
+if [[ ! -z "$RISCV_NONE_ELF" ]]; then
+    # if RISCV_NONE_ELF toolchain seems to be present
+    #generic builds, need user to implement accessors
+    ./buildit on/rv32i $PRESET
+    ./buildit on/rv32imc $PRESET
+    #targeted builds for few specific MCUs
+    ./buildit on/ch32v307 $PRESET
+fi
+
+BASE_NAME=lean-benchmark
+
+OUT=dist/$PRESET/lib${BASE_NAME}
+rm -rf $OUT
+mkdir -p $OUT
+cp LICENSE $OUT
+cp -R lib${BASE_NAME}/include $OUT
+cp -R lib${BASE_NAME}/source $OUT
+mv build $OUT
+git status
+git diff package.json
+sha256sum package.json
+git describe --tags --always --dirty --match "v*" > $OUT/version.txt
+cd dist/$PRESET
+OUT_FILE=lib${BASE_NAME}-$PRESET.tar.gz
+tar czf $OUT_FILE lib${BASE_NAME}
+sha256sum $OUT_FILE > $OUT_FILE.sha256sum
+cd ../..
+rm -rf $OUT
+mv dist/$PRESET/* dist
+rm -rf dist/$PRESET

@@ -1,0 +1,6 @@
+
+
+#define toolchain
+include("${CMAKE_CURRENT_LIST_DIR}/rv32imc")
+
+add_definitions( -DHAS_PRINTF )
