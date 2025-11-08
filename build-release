@@ -19,5 +19,5 @@ fi
 
 ./build-all-targets debug
 ./build-all-targets minSizeRel
-cp -R liblean-benchmark-test dist
+#cp -R liblean-benchmark-test dist
 tar czf ${NAME}.tar.gz dist
