@@ -25,7 +25,7 @@ jobs:
         run: |
           git status
           PATH=`pwd`/xpacks/.bin:$PATH
-          ./build-release 1 lean-benchmark-${{github.ref_name}}
+          ./build-release 0 lean-benchmark-${{github.ref_name}}
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
