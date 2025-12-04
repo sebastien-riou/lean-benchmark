@@ -7,7 +7,7 @@
 
 uint64_t get_cpu_timestamp();
 
-const char*version = xstr(GIT_VERSION);
+static const char*version = xstr(GIT_VERSION);
 
 uint64_t __attribute__((noinline)) donothing(uintptr_t*a){return (uint32_t)(uintptr_t)a;}
 
