@@ -2,7 +2,9 @@
 
 #include <stdint.h>
 
+//functions that must be provided by the environment
 void LBMK_com_tx(const void*data, unsigned int size);
+uint64_t LBMK_get_cpu_timestamp();
 
 typedef struct {
   const char*tag;

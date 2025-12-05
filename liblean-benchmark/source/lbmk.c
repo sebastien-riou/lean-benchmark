@@ -5,9 +5,7 @@
 #include "util.h"
 #include "lean-benchmark.h"
 
-uint64_t get_cpu_timestamp();
-
-static const char*version = xstr(GIT_VERSION);
+const char*LBMK_version = xstr(GIT_VERSION);
 
 uint64_t __attribute__((noinline)) donothing(uintptr_t*a){return (uint32_t)(uintptr_t)a;}
 
@@ -52,9 +50,9 @@ uintptr_t __attribute__((noinline)) LBMK_measure_stack_size(uint32_t max_size){
 
 
 uint64_t __attribute__((noinline)) LBMK_timeit(uint64_t (*dut)(uintptr_t*), void*args, uint32_t*cycles){
-  const uint64_t start = get_cpu_timestamp();
+  const uint64_t start = LBMK_get_cpu_timestamp();
   const uint64_t out = dut(args);
-  const uint64_t end = get_cpu_timestamp();
+  const uint64_t end = LBMK_get_cpu_timestamp();
   *cycles = end-start;
   return out;
 }

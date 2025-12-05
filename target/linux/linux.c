@@ -107,6 +107,21 @@ void dump(uintptr_t addr, uintptr_t size){
 }
 
 //Application level HAL
+void com_tx(const void *const buf, unsigned int size){
+  int status = write(com_port,buf,size);
+  (void)(status);
+}
+void com_rx(void *const buf, unsigned int size){
+  uint8_t*const buf8 = (uint8_t*const)buf;
+  uint8_t inputbyte;
+  for(unsigned int i=0;i<size;i++){
+    while(read(com_port, &inputbyte, 1) != 1){
+      i=0;//com is broken, reset the buffer
+      sleep(1);
+    };
+    buf8[i] = inputbyte;
+  }
+}
 void init(int argc, const char*argv[]){
   for(int i=1;i<argc;i++){
     const char*test_mode_str = "--test-mode";
@@ -118,6 +133,8 @@ void init(int argc, const char*argv[]){
     abort();
   }
   com_port = create_virtual_com_port();
+  uint8_t tmp;
+  com_rx(&tmp, 1);
 }
 void led1(bool on){
   printf("led1: %d\n",on);
@@ -142,21 +159,7 @@ bool button(){
   printf(" --> %d\n",button);
   return button;
 }
-void com_tx(const void *const buf, unsigned int size){
-  int status = write(com_port,buf,size);
-  (void)(status);
-}
-void com_rx(void *const buf, unsigned int size){
-  uint8_t*const buf8 = (uint8_t*const)buf;
-  uint8_t inputbyte;
-  for(unsigned int i=0;i<size;i++){
-    while(read(com_port, &inputbyte, 1) != 1){
-      i=0;//com is broken, reset the buffer
-      sleep(1);
-    };
-    buf8[i] = inputbyte;
-  }
-}
+
 void delay_ms(unsigned int ms){
   struct timespec ts;
   int res;
@@ -168,6 +171,6 @@ void delay_ms(unsigned int ms){
       res = nanosleep(&ts, &ts);
   } while (res && errno == EINTR);
 }
-uint64_t get_cpu_timestamp(){
+uint64_t LBMK_get_cpu_timestamp(){
   return __rdtsc();
 }

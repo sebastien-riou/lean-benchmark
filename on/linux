@@ -6,6 +6,7 @@ set(target_SRCS
 
 add_definitions( -DHAS_SAFE_BUTTON )
 add_definitions( -DHAS_PRINTF )
+add_definitions( -DRUN_ONCE )
 
 
 set(target_include_sys_c_DIRS 
