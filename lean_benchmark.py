@@ -5,6 +5,7 @@ from pysatl import Utils
 import logging
 import io
 import pickle
+import math
 
 def timestamp() -> str:
     now = datetime.datetime.now()
@@ -19,6 +20,12 @@ def describe_results(results) -> str:
     for r in results:
         info=r['setup info']
         p(f'{r['timestamp']}: {info['dut name']} with {info['args setup name']}, {info['ntrials']} trials')
+        cycles = get_cycles(r['data'])
+        p(f'\tMin cycles: {min(cycles)}')
+        p(f'\tAve cycles: {math.ceil(sum(cycles)/len(cycles))}')
+        p(f'\tMax cycles: {max(cycles)}')
+        p(f'\tMax-Min: {max(cycles)-min(cycles)}')
+        
         for t in r['data']:
             stack = ''
             if t['stack size'] == info['max stack size']:
@@ -55,6 +62,9 @@ if __name__ == '__main__':
     parser.add_argument(
         '--describe', default=None, help='Path to pickle file', type=str
     )
+    parser.add_argument(
+        '--uart-log', default=None, help='Path to raw UART output', type=str
+    )
     
     args = parser.parse_args()
 
@@ -64,75 +74,79 @@ if __name__ == '__main__':
             print(describe_results(results))
         sys.exit()
 
-    if args.device is None:
+    if args.device is None and args.uart_log is None:
         parser.print_help()
         exit(-1)
-    
-    device_path = args.device
+
 
     logformat = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
     logdatefmt = '%Y-%m-%d %H:%M:%S'
     logging.basicConfig(level=args.log_level, format=logformat, datefmt=logdatefmt)
     
-    with serial.Serial(device_path, exclusive=args.exclusive,baudrate=args.baud) as device:
+    
+    if args.device:
+        source = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
+        source.write(bytes(1))
+    else:
+        source = open(args.uart_log,'rb') 
 
-        def read_lines_until(expected,log_level=logging.DEBUG) -> bytes:
-            out = bytearray()
-            while True:
-                line = device.readline()
-                out += line
-                line = line.strip()
-                try:
-                    logging.log(level=log_level,msg=line.decode())
-                except:
-                    logging.log(level=log_level,msg=Utils.hexstr(line))
-                if(line.endswith(expected)):
-                    break
-            return bytes(out)
-
-        read_lines_until(b'lean-benchmark start')
-        
-        def read_u32() -> int:
-            b = device.read(4)
-            out = int.from_bytes(b,byteorder='little')
-            logging.debug(f'read_u32: {out}')
-            return out
-
-        def read_string() -> str:
-            size = read_u32()  
-            out = device.read(size).decode('utf-8')
-            logging.debug(f'read_string: "{out}"')
-            return out
-
-        results = list()
+    def read_lines_until(expected,log_level=logging.DEBUG) -> bytes:
+        out = bytearray()
         while True:
-            setup_info = dict()
-            setup_info['dut name'] = read_string()
-            if 0 == len(setup_info['dut name']):
-                break #end of benchmark
-            setup_info['args setup name'] = read_string()
-            setup_info['nargs'] = read_u32()
-            setup_info['ntrials'] = read_u32()
-            setup_info['max stack size'] = read_u32()
-            nextra_data = read_u32()
-            result = dict()
-            result['timestamp'] = timestamp()
-            result['setup info'] = setup_info
-            results_data = list()
-            for i in range(0,setup_info['ntrials']):
-                cycles = read_u32()
-                stack  = read_u32()
-                extra_data = list()
-                for j in range(0,nextra_data):
-                    #get extra data
-                    name = read_string()
-                    length = read_u32()
-                    v = device.read(length)
-                    extra_data.append([name,v])
-                results_data.append({'cycles':cycles, 'stack size':stack, 'extra data':extra_data})
-            result['data'] = results_data
-            results.append(result)
-        with open(f'{timestamp()}-lean-benchmark.pickle','wb') as f:
-            pickle.dump(results,f)
-        print(describe_results(results))
+            line = source.readline()
+            out += line
+            line = line.strip()
+            try:
+                logging.log(level=log_level,msg=line.decode())
+            except:
+                logging.log(level=log_level,msg=Utils.hexstr(line))
+            if(line.endswith(expected)):
+                break
+        return bytes(out)
+
+    read_lines_until(b'lean-benchmark start')
+    
+    def read_u32() -> int:
+        b = source.read(4)
+        out = int.from_bytes(b,byteorder='little')
+        logging.debug(f'read_u32: {out}')
+        return out
+
+    def read_string() -> str:
+        size = read_u32()  
+        out = source.read(size).decode('utf-8')
+        logging.debug(f'read_string: "{out}"')
+        return out
+
+    results = list()
+    while True:
+        setup_info = dict()
+        setup_info['dut name'] = read_string()
+        if 0 == len(setup_info['dut name']):
+            break #end of benchmark
+        setup_info['args setup name'] = read_string()
+        setup_info['nargs'] = read_u32()
+        setup_info['ntrials'] = read_u32()
+        setup_info['max stack size'] = read_u32()
+        nextra_data = read_u32()
+        result = dict()
+        result['timestamp'] = timestamp()
+        result['setup info'] = setup_info
+        results_data = list()
+        for i in range(0,setup_info['ntrials']):
+            cycles = read_u32()
+            stack  = read_u32()
+            extra_data = list()
+            for j in range(0,nextra_data):
+                #get extra data
+                name = read_string()
+                length = read_u32()
+                v = source.read(length)
+                extra_data.append([name,v])
+            results_data.append({'cycles':cycles, 'stack size':stack, 'extra data':extra_data})
+        result['data'] = results_data
+        results.append(result)
+    with open(f'{timestamp()}-lean-benchmark.pickle','wb') as f:
+        pickle.dump(results,f)
+    print(describe_results(results))
         
