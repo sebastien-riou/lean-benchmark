@@ -16,6 +16,8 @@ if [[ ! -z "$EMBED" ]]; then
     ./buildit on/ch32v307-none-embed $PRESET
 fi
 
+./buildit on/linux $PRESET
+
 ARM_NONE_EABI=`which arm-none-eabi-gcc || true`
 if [[ ! -z "$ARM_NONE_EABI" ]]; then
     # if ARM_NONE_EABI toolchain seems to be present
@@ -48,12 +50,18 @@ if [[ ! -z "$RISCV_NONE_ELF" ]]; then
     #generic builds, need user to implement accessors
     ./buildit on/rv32i $PRESET
     ./buildit on/rv32imc $PRESET
+    ./buildit on/rv32imcb $PRESET
     ./buildit on/rv64imc $PRESET
     #targeted builds for few specific MCUs
     ./buildit on/ch32v307 $PRESET
 fi
 
 BASE_NAME=lean-benchmark
+
+OUT_FILE=lib${BASE_NAME}-$PRESET.tar.gz
+OUT_DIR=lib${BASE_NAME}-$PRESET
+rm -f  dist/$OUT_FILE 
+rm -rf dist/$OUT_DIR 
 
 OUT=dist/$PRESET/lib${BASE_NAME}
 rm -rf $OUT
@@ -67,10 +75,13 @@ git diff package.json
 sha256sum package.json
 git describe --tags --always --dirty --match "v*" > $OUT/version.txt
 cd dist/$PRESET
-OUT_FILE=lib${BASE_NAME}-$PRESET.tar.gz
 tar czf $OUT_FILE lib${BASE_NAME}
 sha256sum $OUT_FILE > $OUT_FILE.sha256sum
 cd ../..
 rm -rf $OUT
 mv dist/$PRESET/* dist
 rm -rf dist/$PRESET
+cd dist 
+tar -xf $OUT_FILE
+rm -rf OUT_DIR
+mv lib${BASE_NAME} $OUT_DIR 
