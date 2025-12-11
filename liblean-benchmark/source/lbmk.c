@@ -85,19 +85,24 @@ static void write_string(const char*s){
   LBMK_com_tx(s,size);
 }
 
-void LBMK_announce_start(){
+void LBMK_announce_start(unsigned int ninfo, const char*info[]){
   write_string("\nlean-benchmark start\n");
+  write_u32(ninfo);
+  for(unsigned int i=0;i<ninfo;i++){
+    write_string(info[i]);
+  }
 }
 void LBMK_announce_end(){
   write_u32(0);
 }
-void LBMK_benchmarkit(benchmark_setup_t*setup){
+void LBMK_benchmarkit(benchmark_setup_t*setup, unsigned int case_index){
   write_string(setup->dut_name);
   write_string(setup->args_setup_name);
   write_u32(setup->nargs);
   write_u32(setup->ntrials);
   write_u32(setup->max_stack_size);
   write_u32(setup->nextra_data);
+  write_u32(case_index);
   for(unsigned int i=0;i<setup->ntrials;i++){
     benchmark_result_t result;
     uintptr_t args[setup->nargs];

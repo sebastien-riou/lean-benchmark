@@ -4,7 +4,7 @@ add_library(${LIB} STATIC ${CMAKE_CURRENT_SOURCE_DIR}/source/lbmk.c)
 target_include_directories(${LIB}
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-	  ${CMAKE_CURRENT_SOURCE_DIR}/../lib${LIB}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/source
 )
 
 # Compiler options

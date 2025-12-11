@@ -26,8 +26,8 @@ typedef struct {
   unsigned int extra_data_size;
 } benchmark_setup_t;
 
-void LBMK_announce_start();
-void LBMK_benchmarkit(benchmark_setup_t*setup);
+void LBMK_announce_start(unsigned int ninfo, const char*info[]);
+void LBMK_benchmarkit(benchmark_setup_t*setup, unsigned int case_index);
 void LBMK_announce_end();
 
 //helper functions if the main function cannot be used

@@ -1,6 +1,8 @@
 #include "lean-benchmark.h"
 #include <stdio.h>
 #include <stdbool.h>
+#define xstr(s) str(s)
+#define str(s) #s
 void init(int argc, const char*argv[]);
 
 uint8_t extra_data_parity;
@@ -80,6 +82,9 @@ void LBMK_com_tx(const void*data, unsigned int size){
 }
 
 int main(int argc, const char*argv[]){
+  const char*info[] = {
+    "version", xstr(GIT_VERSION)
+  };
   init(argc,argv);
   LBMK_rng_init();
   sum_custom_benchmark(10);
@@ -89,9 +94,9 @@ int main(int argc, const char*argv[]){
   bool run_forever=1;
   #endif
   do{
-    LBMK_announce_start();
-    LBMK_benchmarkit(&sum_benchmark_simple_setup);
-    LBMK_benchmarkit(&sum_benchmark_setup_with_extra_data);
+    LBMK_announce_start(2,info);
+    LBMK_benchmarkit(&sum_benchmark_simple_setup,0);
+    LBMK_benchmarkit(&sum_benchmark_setup_with_extra_data,0);
     LBMK_announce_end();
   }while(run_forever);
   delay_ms(1000);//give some time to receiver before cutting connection
