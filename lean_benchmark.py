@@ -126,13 +126,12 @@ if __name__ == '__main__':
         '--write-pickle', help='Write pickle file', default=1, type=int
     )
     
-    
     args = parser.parse_args()
 
     if args.describe:
         with open(args.describe,'rb') as f:
             results = pickle.load(f)
-            print(describe_results(results))
+            print(describe_results(results,details=args.details))
         sys.exit()
 
     if args.device is None and args.uart_log is None:
