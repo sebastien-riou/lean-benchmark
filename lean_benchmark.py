@@ -8,9 +8,12 @@ import pickle
 import math
 import humanfriendly
 
-def timestamp() -> str:
-    now = datetime.datetime.now()
-    return now.strftime('%Y%m%d-%H-%M-%S')
+def get_timestamp(ts=None) -> str:
+    if ts:
+        dt = datetime.datetime.fromtimestamp(ts)
+    else:
+        dt = datetime.datetime.now()
+    return dt.strftime('%Y%m%d-%H-%M-%S')
 
 def format_number(num: int, *,precision=1,exact_in_brackets=False) -> str:
     units={'K':10**3,'M':10**6,'G':10**9}
@@ -83,6 +86,19 @@ def get_cycles(data, *, sort=False):
         out.sort()
     return out
 
+def build_pickle_file_name(ts,info):
+    description = 'lean-benchmark'
+    values = info[1::2] # keep only elements at odd indexes (we expect constant labels at even indexes)
+    last = len(values)
+    if last > 0:
+        while True:
+            description = '-'.join(values[:last])
+            if len(description) < 256:
+                break
+            last -= 1
+        description = "".join(x if (x.isalnum() or x in "._- ") else '-' for x in description )
+    return f'{ts}-{description}.pickle'
+
 if __name__ == '__main__':
     scriptname = os.path.basename(__file__)
     parser = argparse.ArgumentParser(scriptname)
@@ -132,7 +148,10 @@ if __name__ == '__main__':
     if args.device:
         source = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
         source.write(bytes(1))
+        timestamp = None #we will generate timestamps during the processing
     else:
+        # we use the timestamp from OS (last modification timestamp)
+        timestamp = os.path.getmtime(args.uart_log)
         source = open(args.uart_log,'rb') 
 
     def read_lines_until(expected,log_level=logging.DEBUG) -> bytes:
@@ -180,7 +199,10 @@ if __name__ == '__main__':
         nextra_data = read_u32()
         case_index = read_u32()
         result = dict()
-        result['timestamp'] = timestamp()
+        if timestamp:
+            result['timestamp'] = timestamp
+        else:
+            result['timestamp'] = get_timestamp()
         result['setup info'] = setup_info
         result['case_index'] = case_index
         results_data = list()
@@ -199,7 +221,11 @@ if __name__ == '__main__':
         results.append(result)
     out = {'info':info,'results':results}
     if args.write_pickle != 0:
-        with open(f'{timestamp()}-lean-benchmark.pickle','wb') as f:
+        name = build_pickle_file_name(get_timestamp(timestamp),info)
+        if timestamp is None:#avoid overwriting results (unless timestamp was comming from uart-log file)
+            while os.path.exists(name):
+                name = build_pickle_file_name(get_timestamp(),info) 
+        with open(name,'wb') as f:
             pickle.dump(out,f)
     print(describe_results(out,details=args.details))
         
