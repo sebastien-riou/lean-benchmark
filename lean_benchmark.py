@@ -27,6 +27,16 @@ def format_number(num: int, *,precision=1,exact_in_brackets=False) -> str:
             return out
     return f'{num}'
 
+def format_timestamp(seconds: float,*,precision=1) -> str:
+    units={'s':1,'ms':10**3,'us':10**6,'ns':10**9}
+    for u in ['ms','us','ns']:
+        divider = units[u]
+        r = round(seconds*divider)
+        if r > 0:
+            out = f'{seconds*divider:.{precision}f}{u}'
+            return out
+    return f'{seconds} s'
+
 def describe_results(data,*,details=True) -> str:
     out = io.StringIO()
     def p(s):
@@ -35,6 +45,16 @@ def describe_results(data,*,details=True) -> str:
     results = data['results']
     for i in range(0,len(info),2) :
         p(f'{info[i]}: {info[i+1]}')
+
+    keys = data['info'][::2] #items at even index
+    values = data['info'][1::2] #items at odd index
+    info = dict(zip(keys,values))
+
+    logging.debug(info)
+    frequency = None
+    if 'frequency_mhz' in info.keys():
+        frequency = float(info['frequency_mhz']) * 1000 * 1000
+
     nresults = len(results)
     p(f'{nresults} records')
     consolidated = {}
@@ -71,10 +91,25 @@ def describe_results(data,*,details=True) -> str:
         min_cycles = min([v['min_cycles'] for v in val])
         max_cycles = max([v['max_cycles'] for v in val])
         ave_cycles = math.ceil(sum([v['ave_cycles'] for v in val])/len(val))
+        t_min_str = ''
+        t_ave_str = ''
+        t_max_str = ''
+        if frequency:
+            t_min = min_cycles/frequency
+            t_ave = ave_cycles/frequency
+            t_max = max_cycles/frequency
+            #t_min_str = f' ({humanfriendly.format_timespan(t_min)})' #not good for sub seconds :-(
+            #t_ave_str = f' ({humanfriendly.format_timespan(t_ave)})'
+            #t_max_str = f' ({humanfriendly.format_timespan(t_max)})'
+            t_min_str = f' ({format_timestamp(t_min)})'
+            t_ave_str = f' ({format_timestamp(t_ave)})'
+            t_max_str = f' ({format_timestamp(t_max)})'
         p(f'Consolidated stats for {key}:')
-        p(f'\tMin cycles: {format_number(min_cycles)}')
-        p(f'\tAve cycles: {format_number(ave_cycles)}')
-        p(f'\tMax cycles: {format_number(max_cycles)}')
+        p(f'\tMin cycles: {format_number(min_cycles)}{t_min_str}')
+        p(f'\tAve cycles: {format_number(ave_cycles)}{t_ave_str}')
+        p(f'\tMax cycles: {format_number(max_cycles)}{t_max_str}')
+        
+            
 
     return out.getvalue()
 
