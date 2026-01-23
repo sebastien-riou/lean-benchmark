@@ -18,3 +18,4 @@ xpacks/
 lean-benchmark.tar.gz
 _git_ignore
 *.pickle
+__pycache__
