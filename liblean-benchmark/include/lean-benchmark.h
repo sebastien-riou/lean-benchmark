@@ -52,4 +52,4 @@ void LBMK_rng_get_state(void*dst);
 void LBMK_rng_set_state(const void*src);
 uint64_t LBMK_rng_get64();
 void LBMK_rng_fill(uint8_t*dst, unsigned int size);
-
+void LBMK_touch_pointers(int n, ...);

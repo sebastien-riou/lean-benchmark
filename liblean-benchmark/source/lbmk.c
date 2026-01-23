@@ -2,14 +2,27 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include "util.h"
 #include "lean-benchmark.h"
 
+
 const char*LBMK_version = xstr(GIT_VERSION);
+
+volatile uint64_t io_sink;
+//'touch' pointers to avoid optimization on the caller site (assuming it is called outside of this lib)
+//don't use LTO with this one
+void __attribute__((noinline)) LBMK_touch_pointers(int n, ...){
+  va_list args;
+  va_start(args, n);  
+  for (int i = 0; i < n; i++) {
+    io_sink ^= va_arg(args,uintptr_t);//not really needed, it is note safe against LTO, we would need to access all the data...
+  }
+  va_end(args);
+}
 
 uint64_t __attribute__((noinline)) donothing(uintptr_t*a){return (uint32_t)(uintptr_t)a;}
 
-volatile uint64_t io_sink;
 void LBMK_write_io(uint64_t data){
   io_sink ^= data;
 }
