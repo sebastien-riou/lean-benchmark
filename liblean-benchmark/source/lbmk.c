@@ -4,8 +4,16 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include "util.h"
+#define LBMK_NO_PRINT_DECL
 #include "lean-benchmark.h"
 
+#define PRINT_PREFIX LBMK_
+void LBMK_print_impl(const char*msg){
+  unsigned int len = strlen(msg);
+  LBMK_com_tx(msg,len);
+}
+#define PRINT_FUNC_DECL
+#include "print.h"
 
 const char*LBMK_version = xstr(GIT_VERSION);
 
@@ -60,12 +68,18 @@ uintptr_t __attribute__((noinline)) LBMK_measure_stack_size(uint32_t max_size){
   return size;
 }
 
-
+static volatile bool within_benchmarked_func = 0;
+bool __attribute__((noinline)) LBMK_is_within_benchmarked_func(){
+  return within_benchmarked_func;
+}
 
 uint64_t __attribute__((noinline)) LBMK_timeit(uint64_t (*dut)(uintptr_t*), void*args, uint32_t*cycles){
+  LBMK_init_heap_usage();
+  within_benchmarked_func = 1;
   const uint64_t start = LBMK_get_cpu_timestamp();
   const uint64_t out = dut(args);
   const uint64_t end = LBMK_get_cpu_timestamp();
+  within_benchmarked_func = 0;
   *cycles = end-start;
   return out;
 }
@@ -89,6 +103,10 @@ uint64_t LBMK_benchmarkit_core(uint64_t (*dut)(uintptr_t*), uintptr_t*args,  uns
 }
 
 static void write_u32(uint32_t u){
+  LBMK_com_tx(&u,sizeof(u));
+}
+
+static void write_u64(uint64_t u){
   LBMK_com_tx(&u,sizeof(u));
 }
 
@@ -125,6 +143,8 @@ void LBMK_benchmarkit(benchmark_setup_t*setup, unsigned int case_index){
     if(setup->post_exec) setup->post_exec(extra_data_info, args, output);
     write_u32(result.cycles);
     write_u32(result.stack_size);
+    const uint64_t heap_usage = LBMK_get_heap_usage();
+    write_u64(heap_usage);
     for(unsigned int j=0;j<setup->nextra_data;j++){
       write_string(extra_data_info[j].tag);
       write_u32(extra_data_info[j].length);

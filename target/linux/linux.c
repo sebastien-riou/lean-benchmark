@@ -174,3 +174,10 @@ void delay_ms(unsigned int ms){
 uint64_t LBMK_get_cpu_timestamp(){
   return __rdtsc();
 }
+uint64_t heap_usage;
+void LBMK_init_heap_usage(){
+  heap_usage = 0;
+}
+uint64_t LBMK_get_heap_usage(){
+  return heap_usage;//malloc hook has been removed from modern linux, so we just don't support it and always return 0.
+}

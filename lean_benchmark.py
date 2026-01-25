@@ -37,6 +37,12 @@ def format_timestamp(seconds: float,*,precision=1) -> str:
             return out
     return f'{seconds} s'
 
+def format_size(size) -> str:
+    out = f'{humanfriendly.format_size(size,binary=True)}'
+    if size > 0:
+        out += f' ({size} bytes)'
+    return out
+
 def describe_results(data,*,details=True) -> str:
     out = io.StringIO()
     def p(s):
@@ -58,17 +64,26 @@ def describe_results(data,*,details=True) -> str:
     nresults = len(results)
     p(f'{nresults} records')
     consolidated = {}
+    heap_reported = True
     for r in results:
         info=r['setup info']
         case_index=r.get('case_index',0)
-        cycles = get_cycles(r['data'])
+        cycles = get_field(r['data'],'cycles')
         min_cycles = min(cycles)
         max_cycles = max(cycles)
         ave_cycles = math.ceil(sum(cycles)/len(cycles))
+        stack_sizes = get_field(r['data'],'stack size')
+        max_stack = max(stack_sizes)
+        try:
+            heap_sizes = get_field(r['data'],'heap size')
+            max_heap = max(heap_sizes)
+        except:
+            max_heap = 0
+            heap_reported = False
         key = f'{info['dut name']}-{info['args setup name']}'
         if key not in consolidated:
             consolidated[key]=[]
-        consolidated[key].append({'min_cycles':min_cycles,'max_cycles':max_cycles,'ave_cycles':ave_cycles})
+        consolidated[key].append({'min_cycles':min_cycles,'max_cycles':max_cycles,'ave_cycles':ave_cycles,'max_stack':max_stack,'max_heap':max_heap})
         
         if details:
             p(f'{r['timestamp']}: {info['dut name']} with {info['args setup name']}, {info['ntrials']} trials, case {case_index}')
@@ -80,9 +95,13 @@ def describe_results(data,*,details=True) -> str:
                 stack = ''
                 if t['stack size'] == info['max stack size']:
                     stack = 'more than '
-                stack_size = f'{humanfriendly.format_size(t['stack size'],binary=True)} ({t['stack size']} bytes)'
+                stack_size = format_size(t['stack size'])
                 stack += stack_size
-                p(f'\t{format_number(t['cycles'],exact_in_brackets=True)} cycles, {stack} of stack')
+                msg = f'\t{format_number(t['cycles'],exact_in_brackets=True)} cycles, {stack} of stack'
+                if heap_reported:
+                    heap = format_size(t['heap size'])
+                    msg+=f', {heap} of heap'
+                p(msg)
                 extra_data = t['extra data']
                 for d in extra_data:
                     p(f'\t\t{d[0]}:{Utils.hexstr(d[1])}')
@@ -91,6 +110,8 @@ def describe_results(data,*,details=True) -> str:
         min_cycles = min([v['min_cycles'] for v in val])
         max_cycles = max([v['max_cycles'] for v in val])
         ave_cycles = math.ceil(sum([v['ave_cycles'] for v in val])/len(val))
+        max_stack = max([v['max_stack'] for v in val])
+        max_heap = max([v['max_heap'] for v in val])
         t_min_str = ''
         t_ave_str = ''
         t_max_str = ''
@@ -108,15 +129,18 @@ def describe_results(data,*,details=True) -> str:
         p(f'\tMin cycles: {format_number(min_cycles)}{t_min_str}')
         p(f'\tAve cycles: {format_number(ave_cycles)}{t_ave_str}')
         p(f'\tMax cycles: {format_number(max_cycles)}{t_max_str}')
+        p(f'\tMax stack:  {format_size(max_stack)}')
+        if heap_reported:
+            p(f'\tMax heap:   {format_size(max_heap)}')
+        else:
+            p(f'\tHeap not reported')
         
-            
-
     return out.getvalue()
 
-def get_cycles(data, *, sort=False):
+def get_field(data, field, *, sort=False):
     out = []
     for t in data:
-        out.append(t['cycles'])
+        out.append(t[field])
     if sort:
         out.sort()
     return out
@@ -163,6 +187,10 @@ if __name__ == '__main__':
     
     args = parser.parse_args()
 
+    logformat = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
+    logdatefmt = '%Y-%m-%d %H:%M:%S'
+    logging.basicConfig(level=args.log_level, format=logformat, datefmt=logdatefmt)
+    
     if args.describe:
         with open(args.describe,'rb') as f:
             results = pickle.load(f)
@@ -172,12 +200,6 @@ if __name__ == '__main__':
     if args.device is None and args.uart_log is None:
         parser.print_help()
         exit(-1)
-
-
-    logformat = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
-    logdatefmt = '%Y-%m-%d %H:%M:%S'
-    logging.basicConfig(level=args.log_level, format=logformat, datefmt=logdatefmt)
-    
     
     if args.device:
         source = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
@@ -208,6 +230,12 @@ if __name__ == '__main__':
         b = source.read(4)
         out = int.from_bytes(b,byteorder='little')
         logging.debug(f'read_u32: {out}')
+        return out
+    
+    def read_u64() -> int:
+        b = source.read(8)
+        out = int.from_bytes(b,byteorder='little')
+        logging.debug(f'read_u64: {out}')
         return out
 
     def read_string() -> str:
@@ -243,6 +271,7 @@ if __name__ == '__main__':
         for i in range(0,setup_info['ntrials']):
             cycles = read_u32()
             stack  = read_u32()
+            heap   = read_u64()
             extra_data = list()
             for j in range(0,nextra_data):
                 #get extra data
@@ -250,7 +279,7 @@ if __name__ == '__main__':
                 length = read_u32()
                 v = source.read(length)
                 extra_data.append([name,v])
-            results_data.append({'cycles':cycles, 'stack size':stack, 'extra data':extra_data})
+            results_data.append({'cycles':cycles, 'stack size':stack, 'heap size': heap, 'extra data':extra_data})
         result['data'] = results_data
         results.append(result)
     out = {'info':info,'results':results}
