@@ -42,7 +42,7 @@ VSCode tends to interfere with cmake files and force it to use Ninja. If that ha
 This example runs on Linux but the principle is the same with an embedded target.
 
 1. Run the target: `./build/linux/lean-benchmark-test-fw`
-2. In a second terminal, run the python script: `pipenv run python lean_benchmark.py --device /dev/pts/?` (replace '?' with the number reported by the target)
+2. In a second terminal, run the python script: `pipenv run python lean_benchmark.py --device /dev/pts/? --send=00` (replace '?' with the number reported by the target)
 
 The result are displayed in the second terminal and are also captured in a python pickle file for easy export.
 The pickle file can be read back using:

@@ -11,5 +11,7 @@
         "initializer_list": "c",
         "cstdint": "c"
     },
-    "cortex-debug.variableUseNaturalFormat": false
+    "cortex-debug.variableUseNaturalFormat": false,
+    "python-envs.defaultEnvManager": "ms-python.python:pipenv",
+    "python-envs.pythonProjects": []
 }

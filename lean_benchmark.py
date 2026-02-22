@@ -158,6 +158,48 @@ def build_pickle_file_name(ts,info):
         description = "".join(x if (x.isalnum() or x in "._- ") else '-' for x in description )
     return f'{ts}-{description}.pickle'
 
+class DeviceRuntimeError(RuntimeError):
+    pass
+
+class SerialWithException():
+    EXCEPTION = "EXCEPTION".encode()
+    def __init__(self, impl):
+        self.impl = impl
+        self.threshold = len(self.EXCEPTION)
+        self.level=0
+        self.all = bytearray()
+
+    def read1(self):
+        c = self.impl.read(1)
+        self.all += c
+        e = self.EXCEPTION[self.level]
+        i = c[0]
+        if i == e:
+            self.level+=1
+            if self.level == self.threshold:
+                self.level = 0
+                raise DeviceRuntimeError()
+        else:
+            self.level = 0
+        return c
+    
+    def read(self, n):
+        out = bytearray()
+        for i in range(0,n):
+            out += self.read1()
+        return bytes(out)
+
+    def readline(self):
+        out = bytearray()
+        while(True):
+            c = self.read1()
+            out += c
+            if c == b'\n':
+                return bytes(out)
+    
+    def write(self, data):
+        self.impl.write(data)
+
 if __name__ == '__main__':
     scriptname = os.path.basename(__file__)
     parser = argparse.ArgumentParser(scriptname)
@@ -184,6 +226,11 @@ if __name__ == '__main__':
     parser.add_argument(
         '--write-pickle', help='Write pickle file', default=1, type=int
     )
+    parser.add_argument(
+        '--send', help='send', default=None, type=str
+    )
+    
+    
     
     args = parser.parse_args()
 
@@ -202,13 +249,16 @@ if __name__ == '__main__':
         exit(-1)
     
     if args.device:
-        source = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
-        source.write(bytes(1))
+        ser = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
+        source = SerialWithException(ser)
+        if args.send:
+            ser.write(Utils.ba(args.send))
+            ser.flush()
         timestamp = None #we will generate timestamps during the processing
     else:
         # we use the timestamp from OS (last modification timestamp)
         timestamp = os.path.getmtime(args.uart_log)
-        source = open(args.uart_log,'rb') 
+        source = SerialWithException(open(args.uart_log,'rb')) 
 
     def read_lines_until(expected,log_level=logging.DEBUG) -> bytes:
         out = bytearray()
@@ -224,8 +274,6 @@ if __name__ == '__main__':
                 break
         return bytes(out)
 
-    read_lines_until(b'lean-benchmark start')
-    
     def read_u32() -> int:
         b = source.read(4)
         out = int.from_bytes(b,byteorder='little')
@@ -244,44 +292,57 @@ if __name__ == '__main__':
         logging.debug(f'read_string: "{out}"')
         return out
 
-    info = []
-    ninfo = read_u32()
-    for i in range(0,ninfo):
-        info.append(read_string())
-    results = list()
-    while True:
-        setup_info = dict()
-        setup_info['dut name'] = read_string()
-        if 0 == len(setup_info['dut name']):
-            break #end of benchmark
-        setup_info['args setup name'] = read_string()
-        setup_info['nargs'] = read_u32()
-        setup_info['ntrials'] = read_u32()
-        setup_info['max stack size'] = read_u32()
-        nextra_data = read_u32()
-        case_index = read_u32()
-        result = dict()
-        if timestamp:
-            result['timestamp'] = timestamp
-        else:
-            result['timestamp'] = get_timestamp()
-        result['setup info'] = setup_info
-        result['case_index'] = case_index
-        results_data = list()
-        for i in range(0,setup_info['ntrials']):
-            cycles = read_u32()
-            stack  = read_u32()
-            heap   = read_u64()
-            extra_data = list()
-            for j in range(0,nextra_data):
-                #get extra data
-                name = read_string()
-                length = read_u32()
-                v = source.read(length)
-                extra_data.append([name,v])
-            results_data.append({'cycles':cycles, 'stack size':stack, 'heap size': heap, 'extra data':extra_data})
-        result['data'] = results_data
-        results.append(result)
+    try:
+        read_lines_until(b'lean-benchmark start')
+        
+        info = []
+        ninfo = read_u32()
+        for i in range(0,ninfo):
+            info.append(read_string())
+        results = list()
+        while True:
+            setup_info = dict()
+            setup_info['dut name'] = read_string()
+            if 0 == len(setup_info['dut name']):
+                break #end of benchmark
+            setup_info['args setup name'] = read_string()
+            setup_info['nargs'] = read_u32()
+            setup_info['ntrials'] = read_u32()
+            setup_info['max stack size'] = read_u32()
+            nextra_data = read_u32()
+            case_index = read_u32()
+            result = dict()
+            if timestamp:
+                result['timestamp'] = timestamp
+            else:
+                result['timestamp'] = get_timestamp()
+            result['setup info'] = setup_info
+            result['case_index'] = case_index
+            results_data = list()
+            for i in range(0,setup_info['ntrials']):
+                cycles = read_u32()
+                stack  = read_u32()
+                heap   = read_u64()
+                extra_data = list()
+                for j in range(0,nextra_data):
+                    #get extra data
+                    name = read_string()
+                    length = read_u32()
+                    v = source.read(length)
+                    extra_data.append([name,v])
+                results_data.append({'cycles':cycles, 'stack size':stack, 'heap size': heap, 'extra data':extra_data})
+            result['data'] = results_data
+            results.append(result)
+    except DeviceRuntimeError:
+        logging.error("Device raised an exception: press CTRL-C to terminate")
+        while(True):
+            raw = source.impl.readline()
+            try:
+                s = raw.decode()
+                logging.error(s.strip())
+            except:
+                logging.error(raw)
+
     out = {'info':info,'results':results}
     if args.write_pickle != 0:
         name = build_pickle_file_name(get_timestamp(timestamp),info)
