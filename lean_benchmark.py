@@ -288,9 +288,14 @@ if __name__ == '__main__':
 
     def read_string() -> str:
         size = read_u32()  
-        out = source.read(size).decode('utf-8')
-        logging.debug(f'read_string: "{out}"')
-        return out
+        out = source.read(size)
+        try:
+            out_str = out.decode('utf-8')
+            logging.debug(f'read_string: "{out}"')
+        except UnicodeDecodeError as e:
+            logging.error(Utils.hexstr(out))
+            raise e
+        return out_str
 
     try:
         read_lines_until(b'lean-benchmark start')
