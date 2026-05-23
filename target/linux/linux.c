@@ -133,8 +133,10 @@ void init(int argc, const char*argv[]){
     abort();
   }
   com_port = create_virtual_com_port();
+  #if RAW_COM
   uint8_t tmp;
   com_rx(&tmp, 1);
+  #endif
 }
 void led1(bool on){
   printf("led1: %d\n",on);

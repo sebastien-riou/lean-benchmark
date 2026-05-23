@@ -2,7 +2,8 @@
 Simple yet flexible benchmarking framework for embedded devices.
 
 ## Introduction
-lean-benchmark is a library meant to be executed on the target to benchmark. It comes with a python script which parse the output of the library. 
+lean-benchmark is a library meant to be executed on the target to benchmark. It comes with a python script which parse the output of the library.
+The python code and the library leverage [lean-com](https://github.com/sebastien-riou/lean-com) to ensure that they start communicating correctly no matter which side is ready first. 
 
 The library measure the execution time and the stack size actually consumed in one run.
 The user specify how to get the current time on the target platform, so the reported number can be either time or clock cycles.
@@ -42,7 +43,7 @@ VSCode tends to interfere with cmake files and force it to use Ninja. If that ha
 This example runs on Linux but the principle is the same with an embedded target.
 
 1. Run the target: `./build/linux/lean-benchmark-test-fw`
-2. In a second terminal, run the python script: `pipenv run python lean_benchmark.py --device /dev/pts/? --send=00` (replace '?' with the number reported by the target)
+2. In a second terminal, run the python script: `pipenv run python lean_benchmark.py --device /dev/pts/?` (replace '?' with the number reported by the target)
 
 The result are displayed in the second terminal and are also captured in a python pickle file for easy export.
 The pickle file can be read back using:
@@ -54,6 +55,22 @@ For embedded targets, it is also possible to just capture the UART output and th
 ````
 pipenv run python lean_benchmark.py --uart-log uart-rv64imc.log
 ```` 
+
+## How to use raw protocol
+By default lean-benchmark use [lean-com](https://github.com/sebastien-riou/lean-com). If you prefer to avoid that dependency, you can switch to raw protocol.
+The downsides are the following:
+- you need to start the target device first and wait for it to be ready before starting the python code
+- you cannot insert debug messages in the target code without modifying the python code
+
+to test this on linux:
+````
+./testit on/linux debug -DRAW_COM=1
+````
+
+In another terminal:
+````
+pipenv run python lean_benchmark.py --device /dev/pts/15 --leancom=0 --send=00 
+````
 
 ## How to make a release package
 The script `build-release` builds all targets for both build types and zip everything.

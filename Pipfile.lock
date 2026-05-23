@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "2b7a445d754f76032f6e69c4793f23263bb009243c5b9aa97a9754ac3eccee4d"
+            "sha256": "dc79ff5af9692255517bb94037b150093d228b4e64f459389e498a15071913c6"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -24,6 +24,10 @@
             "index": "pypi",
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2, 3.3, 3.4'",
             "version": "==10.0"
+        },
+        "leancom": {
+            "git": "git+https://github.com/sebastien-riou/lean-com.git",
+            "ref": "3b2383531e554a34f59088b4964fc4a0cf8b6dba"
         },
         "pysatl": {
             "hashes": [

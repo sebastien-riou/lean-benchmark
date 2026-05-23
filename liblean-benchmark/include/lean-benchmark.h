@@ -29,6 +29,7 @@ typedef struct {
   unsigned int extra_data_size;
 } benchmark_setup_t;
 
+void LBMK_init_leancom();//optional, if you use it, it must be the first LBMK_* function to be called
 void LBMK_announce_start(unsigned int ninfo, const char*info[]);
 void LBMK_benchmarkit(benchmark_setup_t*setup, unsigned int case_index);
 void LBMK_announce_end();

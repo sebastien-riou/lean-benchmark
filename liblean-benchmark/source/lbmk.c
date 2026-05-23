@@ -4,13 +4,67 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include "util.h"
+#include "leancom.h"
 #define LBMK_NO_PRINT_DECL
 #include "lean-benchmark.h"
 
+
+
+//dummy implementation as it is needed only if using leancom, that can be override by user
+__attribute__((weak)) void LBMK_com_rx(void*data, unsigned int size){
+  while(1);
+}
+
+//dummy implementation that can be override by user
+__attribute__((weak)) void _leancom_error_handler(uint32_t err_code){
+  while(1);
+}
+
+void _leancom_rx(void*data, unsigned int size){
+  LBMK_com_rx(data,size);
+}
+
+void _leancom_tx(const void*data, unsigned int size){
+  LBMK_com_tx(data,size);
+}
+
+static bool use_leancom=0;
+void LBMK_init_leancom(){
+  leancom_synchronize();
+  leancom_print("Debug messages can be sent like that or use LBMK_print* functions\n");
+  use_leancom = 1;
+}
+
+static void generic_com_tx(const void*data, unsigned int size){
+  if(use_leancom){
+    leancom_tx_data(data,size);
+  }else{
+    LBMK_com_tx(data,size);
+  }
+}
+
+static void write_u32(uint32_t u){
+  generic_com_tx(&u,sizeof(u));
+}
+
+static void write_u64(uint64_t u){
+  generic_com_tx(&u,sizeof(u));
+}
+
+static void write_string(const char*s){
+  uint32_t size = strlen(s);
+  write_u32(size);
+  generic_com_tx(s,size);
+}
+
 #define PRINT_PREFIX LBMK_
 void LBMK_print_impl(const char*msg){
-  unsigned int len = strlen(msg);
-  LBMK_com_tx(msg,len);
+  if(use_leancom){
+    leancom_print(msg);
+  }else{
+    unsigned int len = strlen(msg);
+    LBMK_com_tx(msg,len);
+  }
 }
 #define PRINT_FUNC_DECL
 #include "print.h"
@@ -102,20 +156,6 @@ uint64_t LBMK_benchmarkit_core(uint64_t (*dut)(uintptr_t*), uintptr_t*args,  uns
   return safe_out;
 }
 
-static void write_u32(uint32_t u){
-  LBMK_com_tx(&u,sizeof(u));
-}
-
-static void write_u64(uint64_t u){
-  LBMK_com_tx(&u,sizeof(u));
-}
-
-static void write_string(const char*s){
-  uint32_t size = strlen(s);
-  write_u32(size);
-  LBMK_com_tx(s,size);
-}
-
 void LBMK_announce_start(unsigned int ninfo, const char*info[]){
   write_string("\nlean-benchmark start\n");
   write_u32(ninfo);
@@ -148,7 +188,7 @@ void LBMK_benchmarkit(benchmark_setup_t*setup, unsigned int case_index){
     for(unsigned int j=0;j<setup->nextra_data;j++){
       write_string(extra_data_info[j].tag);
       write_u32(extra_data_info[j].length);
-      LBMK_com_tx(extra_data_info[j].value, extra_data_info[j].length);
+      generic_com_tx(extra_data_info[j].value, extra_data_info[j].length);
     }
   }
 }

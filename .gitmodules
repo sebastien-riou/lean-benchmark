@@ -1,0 +1,3 @@
+[submodule "lean-com"]
+	path = lean-com
+	url = https://github.com/sebastien-riou/lean-com

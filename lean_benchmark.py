@@ -7,6 +7,7 @@ import io
 import pickle
 import math
 import humanfriendly
+import leancom
 
 def get_timestamp(ts=None) -> str:
     if ts:
@@ -227,10 +228,11 @@ if __name__ == '__main__':
         '--write-pickle', help='Write pickle file', default=1, type=int
     )
     parser.add_argument(
-        '--send', help='send', default=None, type=str
+        '--leancom', help='0: use raw protocol, 1: use lean-com protocol', default=1, type=int
     )
-    
-    
+    parser.add_argument(
+        '--send', help='send a string after opening com in raw protocol', default=None, type=str
+    )   
     
     args = parser.parse_args()
 
@@ -250,10 +252,13 @@ if __name__ == '__main__':
     
     if args.device:
         ser = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
-        source = SerialWithException(ser)
-        if args.send:
+        if args.leancom:
+            ser = leancom.Device(ser)
+            ser.synchronize()
+        elif args.send:
             ser.write(Utils.ba(args.send))
             ser.flush()
+        source = SerialWithException(ser)
         timestamp = None #we will generate timestamps during the processing
     else:
         # we use the timestamp from OS (last modification timestamp)

@@ -61,7 +61,8 @@ benchmark_setup_t sum_benchmark_setup_with_extra_data = {
 };
 
 void sum_custom_benchmark(unsigned int ntrials){
-  printf("%s\n",__func__);
+  //printf("%s\n",__func__);
+  LBMK_println(__func__);
   const unsigned int max_stack_size = 1024*2;
   benchmark_result_t results[ntrials];
   for(unsigned int i=0;i<ntrials;i++){
@@ -70,8 +71,10 @@ void sum_custom_benchmark(unsigned int ntrials){
     LBMK_benchmarkit_core(sum_dut,args,sizeof(args),max_stack_size,results+i);
   }
   for(unsigned int i=0;i<ntrials;i++){
-    printf("Trial %2u: %10u cycles, %5u bytes on stack\n",
-      i,results[i].cycles, results[i].stack_size);
+    //printf("Trial %2u: %10u cycles, %5u bytes on stack\n",i,results[i].cycles, results[i].stack_size);
+    LBMK_print32d("Trial ",i,":");
+    LBMK_print32d(" ",results[i].cycles," cycles, ");
+    LBMK_print32d(" ",results[i].stack_size," bytes\n");
   }
 }
 
@@ -81,11 +84,24 @@ void LBMK_com_tx(const void*data, unsigned int size){
   com_tx(data,size);
 }
 
+#if 0==RAW_COM
+void com_rx(void *const buf, unsigned int size);
+void LBMK_com_rx(void*const data, unsigned int size){
+  com_rx(data,size);
+}
+void _leancom_error_handler(uint32_t err_code){
+  while(1);
+}
+#endif
+
 int main(int argc, const char*argv[]){
   const char*info[] = {
     "version", xstr(GIT_VERSION)
   };
   init(argc,argv);
+  #if 0==RAW_COM
+  LBMK_init_leancom();
+  #endif
   LBMK_rng_init();
   sum_custom_benchmark(10);
   #ifdef RUN_ONCE
