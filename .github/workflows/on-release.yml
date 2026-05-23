@@ -10,8 +10,10 @@ jobs:
     permissions: write-all
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          submodules: 'true'
       - name: Install xpm
         run: |
           npm install --global xpm@latest
