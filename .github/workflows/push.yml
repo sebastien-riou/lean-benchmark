@@ -13,7 +13,10 @@ jobs:
       fail-fast: true
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout repo
+      uses: actions/checkout@v4
+      with:
+        submodules: 'true'
     #workaround for package.json: it gets modified during "xpm install" somehow, so we backup it and restore it before launching the build
     - name: Install xpm
       run: |
