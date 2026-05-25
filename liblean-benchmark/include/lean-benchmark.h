@@ -30,6 +30,7 @@ typedef struct {
 } benchmark_setup_t;
 
 void LBMK_init_leancom();//optional, if you use it, it must be the first LBMK_* function to be called
+int LBMK_putchar(int c);//optional, if you want to use printf, use this to override putchar function
 void LBMK_announce_start(unsigned int ninfo, const char*info[]);
 void LBMK_benchmarkit(benchmark_setup_t*setup, unsigned int case_index);
 void LBMK_announce_end();

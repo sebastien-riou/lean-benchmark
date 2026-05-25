@@ -28,10 +28,13 @@ void _leancom_tx(const void*data, unsigned int size){
   LBMK_com_tx(data,size);
 }
 
+int LBMK_putchar(int c){
+  return leancom_putchar(c);
+}
+
 static bool use_leancom=0;
 void LBMK_init_leancom(){
   leancom_synchronize();
-  leancom_print("Debug messages can be sent like that or use LBMK_print* functions\n");
   use_leancom = 1;
 }
 
