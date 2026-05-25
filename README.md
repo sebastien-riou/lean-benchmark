@@ -69,12 +69,12 @@ to test this on linux:
 
 In another terminal:
 ````
-pipenv run python lean_benchmark.py --device /dev/pts/15 --leancom=0 --send=00 
+pipenv run python lean_benchmark.py --device /dev/pts/? --leancom=0 --send=00 
 ````
 
 ## How to make a release package
 The script `build-release` builds all targets for both build types and zip everything.
-By default it build for Linux and launch the test. This requires use interaction currently
+By default it build for Linux and launch the test. This requires user interaction currently
 so it is recommend to disable it by providing '0' as argument. 
 
 Example:
