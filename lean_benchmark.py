@@ -1,4 +1,5 @@
 import datetime
+import time
 import serial 
 import sys,os,argparse
 from pysatl import Utils
@@ -232,7 +233,10 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--send', help='send a string after opening com in raw protocol', default=None, type=str
-    )   
+    )
+    parser.add_argument(
+        '--device-timeout', help="timeout in seconds to wait in case the device does not exist, 0 don't wait, -1 block undefintely", default=0, type=int
+    )    
     
     args = parser.parse_args()
 
@@ -251,6 +255,18 @@ if __name__ == '__main__':
         exit(-1)
     
     if args.device:
+        if not os.path.exists(args.device):
+            logging.info(f'{args.device} not found')
+            if args.device_timeout == -1:
+                logging.info('waiting until it is detected')
+            if args.device_timeout > 0:
+                logging.info(f'waiting up to {args.device_timeout} seconds for it')
+            start = datetime.datetime.now()
+            while args.device_timeout == -1 or (datetime.datetime.now()-start).total_seconds() < args.device_timeout:
+                time.sleep(.2)
+                if os.path.exists(args.device):
+                    logging.info(f'{args.device} detected')
+                    break
         ser = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
         if args.leancom:
             ser = leancom.Device(ser)
