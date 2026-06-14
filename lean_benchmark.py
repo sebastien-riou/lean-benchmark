@@ -255,7 +255,10 @@ if __name__ == '__main__':
         exit(-1)
     
     if args.device:
-        if not os.path.exists(args.device):
+        exist1 = os.path.exists(args.device)
+        time.sleep(.2)
+        exist2 = os.path.exists(args.device)
+        if not exist1 or not exist2:
             logging.info(f'{args.device} not found')
             if args.device_timeout == -1:
                 logging.info('waiting until it is detected')
@@ -263,7 +266,7 @@ if __name__ == '__main__':
                 logging.info(f'waiting up to {args.device_timeout} seconds for it')
             start = datetime.datetime.now()
             while args.device_timeout == -1 or (datetime.datetime.now()-start).total_seconds() < args.device_timeout:
-                time.sleep(.2)
+                time.sleep(.5)
                 if os.path.exists(args.device):
                     logging.info(f'{args.device} detected')
                     break
