@@ -268,8 +268,12 @@ if __name__ == '__main__':
             while args.device_timeout == -1 or (datetime.datetime.now()-start).total_seconds() < args.device_timeout:
                 time.sleep(.5)
                 if os.path.exists(args.device):
-                    logging.info(f'{args.device} detected')
-                    break
+                    can_read = os.access(args.device, os.R_OK) # Check for read access
+                    can_write = os.access(args.device, os.W_OK) # Check for write access
+                    logging.info(f'{args.device} detected (can read:{can_read}, can write:{can_write})')
+                    if can_read and can_write:
+                        break
+                        
         ser = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
         if args.leancom:
             ser = leancom.Device(ser)
