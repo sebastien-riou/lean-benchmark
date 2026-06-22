@@ -20,6 +20,9 @@ __attribute__((weak)) void _leancom_error_handler(uint32_t err_code){
   while(1);
 }
 
+__attribute__((weak)) void LBMK_clear_caches(){
+}
+
 void _leancom_rx(void*data, unsigned int size){
   LBMK_com_rx(data,size);
 }
@@ -132,6 +135,7 @@ bool __attribute__((noinline)) LBMK_is_within_benchmarked_func(){
 
 uint64_t __attribute__((noinline)) LBMK_timeit(uint64_t (*dut)(uintptr_t*), void*args, uint32_t*cycles){
   LBMK_init_heap_usage();
+  LBMK_clear_caches();
   within_benchmarked_func = 1;
   const uint64_t start = LBMK_get_cpu_timestamp();
   const uint64_t out = dut(args);

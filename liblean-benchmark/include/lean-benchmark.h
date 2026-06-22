@@ -8,6 +8,7 @@ void LBMK_com_tx(const void*data, unsigned int size);
 uint64_t LBMK_get_cpu_timestamp();
 void LBMK_init_heap_usage();
 uint64_t LBMK_get_heap_usage();//you can call LBMK_is_within_benchmarked_func to know if an allocation is done by the benchmarked function or not
+void LBMK_clear_caches();
 
 typedef struct {
   const char*tag;
