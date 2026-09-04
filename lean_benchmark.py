@@ -163,6 +163,130 @@ def build_pickle_file_name(ts,info):
 class DeviceRuntimeError(RuntimeError):
     pass
 
+class SyncTimeout(RuntimeError):
+    pass
+
+class _Wait():
+    """Bookkeeping for a wait made of many short polls.
+
+    The deadline is held by the port and covers the whole handshake, not this
+    one wait: bytes flowing without the handshake completing is itself a
+    failure (a board mid-benchmark, or two state machines skewed by line
+    noise), so a per-wait or inactivity-based bound would never fire on it.
+    Warnings are per-wait and do reset on progress, which is what makes them
+    readable during a long measurement.
+    """
+    def __init__(self, port, what_for):
+        self.port = port
+        self.what_for = what_for
+        self.last = time.monotonic()
+        self.warned = 0
+        # Every wait checks on entry as well as on each poll: a livelocked
+        # handshake never runs out of bytes, so it would never reach a poll.
+        self._check(self.last)
+
+    def _check(self, now):
+        if self.port.expires_at is not None and now >= self.port.expires_at:
+            raise SyncTimeout(f'{self.port.what}: the lean-com handshake did not complete '
+                              f'within {self.port.deadline}s (waiting for {self.what_for})')
+
+    def tick(self, progressed=False):
+        """Account for one poll. Raises once the port deadline, if any, is past."""
+        now = time.monotonic()
+        self._check(now)
+        if progressed:
+            self.last = now
+            self.warned = 0
+            return
+        waited = now - self.last
+        n = int(waited // self.port.WARN_EVERY)
+        if n > self.warned:
+            self.warned = n
+            logging.warning(f'{self.port.what}: still no {self.what_for} after {int(waited)}s')
+
+class PollingPort():
+    """Wrap a pyserial port so that waiting happens here, not inside a blocking read.
+
+    The port is kept on a short poll timeout and every wait is a loop over those
+    polls. That makes "wait forever" and "give up after n seconds" the same code
+    path, differing only by the deadline, and it leaves room between polls to
+    report that nothing is coming back.
+
+    A deadline is only ever armed for the lean-com handshake: a target computes
+    for many seconds between packets during a benchmark, so no bound is safe
+    once measurements start. Without a deadline the loop warns and keeps waiting,
+    which is what the port did before, only no longer silently.
+    """
+    POLL = 1.0        # seconds spent in one port read before we look up
+    DRAIN_POLL = 0.05 # seconds between checks that the output queue moved
+    WARN_EVERY = 5.0  # seconds between "still nothing" warnings
+
+    def __init__(self, impl, what='device'):
+        self.impl = impl
+        self.what = what
+        self.deadline = None
+        self.expires_at = None
+        self.impl.timeout = self.POLL
+
+    def __getattr__(self, name):
+        return getattr(self.impl, name)
+
+    def set_deadline(self, timeout):
+        """Arm a deadline `timeout` seconds from now, or None to wait forever."""
+        self.deadline = timeout
+        self.expires_at = None if timeout is None else time.monotonic() + timeout
+        # Bounding a write is only safe while writes are single bytes, so it is
+        # armed with the handshake deadline and never during measurements.
+        self.impl.write_timeout = self.POLL if timeout is not None else None
+
+    def read(self, size=1):
+        if size <= 0:
+            return b'' # a zero-length lean-com packet is legitimate
+        out = bytearray()
+        w = _Wait(self, 'answer')
+        while len(out) < size:
+            c = self.impl.read(size - len(out))
+            out += c
+            if len(out) < size:
+                w.tick(progressed=bool(c)) # keep partial reads, a poll ending is not an error
+        return bytes(out)
+
+    def readline(self):
+        out = bytearray()
+        w = _Wait(self, 'answer')
+        while True:
+            c = self.impl.read(1)
+            out += c
+            if c == b'\n':
+                return bytes(out)
+            w.tick(progressed=bool(c))
+
+    def _drain(self, what_for):
+        w = _Wait(self, what_for)
+        while True:
+            try:
+                pending = self.impl.out_waiting
+            except (OSError, NotImplementedError, serial.SerialException):
+                return # nothing to gate on, let the caller proceed
+            if not pending:
+                return
+            time.sleep(self.DRAIN_POLL)
+            w.tick()
+
+    def write(self, data):
+        # Gate on the output queue instead of bounding the write: pyserial
+        # reports no partial count on a write timeout, so retrying could
+        # duplicate protocol bytes. Once the queue is empty a lean-com write is
+        # small enough to always fit, so it cannot block.
+        self._drain('room to send')
+        try:
+            self.impl.write(data)
+        except serial.SerialTimeoutException as e:
+            raise SyncTimeout(f'{self.what}: cannot send, the device is not reading') from e
+
+    def flush(self):
+        self._drain('room to send')
+
 class SerialWithException():
     EXCEPTION = "EXCEPTION".encode()
     def __init__(self, impl):
@@ -237,8 +361,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--device-timeout', help="timeout in seconds to wait in case the device does not exist, 0 don't wait, -1 block undefintely", default=0, type=int
     )    
+    parser.add_argument(
+        '--sync-timeout', help="maximum seconds for the lean-com handshake to complete, -1 block indefinitely", default=-1, type=float
+    )    
     
     args = parser.parse_args()
+
+    if args.sync_timeout <= 0 and args.sync_timeout != -1:
+        parser.error('--sync-timeout must be a positive number of seconds, or -1 to block indefinitely')
 
     logformat = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
     logdatefmt = '%Y-%m-%d %H:%M:%S'
@@ -274,13 +404,23 @@ if __name__ == '__main__':
                     if can_read and can_write:
                         break
                         
-        ser = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
         if args.leancom:
-            ser = leancom.Device(ser)
-            ser.synchronize()
-        elif args.send:
-            ser.write(Utils.ba(args.send))
-            ser.flush()
+            port = PollingPort(serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud), what=args.device)
+            port.set_deadline(None if args.sync_timeout < 0 else args.sync_timeout)
+            ser = leancom.Device(port)
+            logging.info(f'{args.device}: waiting for the lean-com handshake')
+            try:
+                ser.synchronize()
+            except SyncTimeout as e:
+                sys.exit(f'{e}; likely a halted core, a crash before the handshake, stale '
+                         'firmware, no reset since the last run, or line noise')
+            logging.info(f'{args.device}: lean-com handshake done')
+            port.set_deadline(None) # a benchmark can compute for a long time between packets
+        else:
+            ser = serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud)
+            if args.send:
+                ser.write(Utils.ba(args.send))
+                ser.flush()
         source = SerialWithException(ser)
         timestamp = None #we will generate timestamps during the processing
     else:
