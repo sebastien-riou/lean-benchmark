@@ -79,8 +79,8 @@ const char*LBMK_version = xstr(GIT_VERSION);
 
 volatile uint64_t io_sink;
 //'touch' pointers to avoid optimization on the caller site (assuming it is called outside of this lib)
-//don't use LTO with this one
-void __attribute__((noinline)) LBMK_touch_pointers(int n, ...){
+//noipa: the caller must not see the body, otherwise LTO can prove the pointers unused
+void __attribute__((noinline,noipa)) LBMK_touch_pointers(int n, ...){
   va_list args;
   va_start(args, n);  
   for (int i = 0; i < n; i++) {
@@ -89,7 +89,7 @@ void __attribute__((noinline)) LBMK_touch_pointers(int n, ...){
   va_end(args);
 }
 
-uint64_t __attribute__((noinline)) donothing(uintptr_t*a){return (uint32_t)(uintptr_t)a;}
+uint64_t __attribute__((noinline,noipa)) donothing(uintptr_t*a){return (uint32_t)(uintptr_t)a;}
 
 void LBMK_write_io(uint64_t data){
   io_sink ^= data;
@@ -112,12 +112,12 @@ void LBMK_memset_io(void*dst, uint8_t val, unsigned int size){
 uint32_t __attribute__((noinline)) ret0(void*a){return 0;}
 #define STACK_MEASUREMENT_VAL 0x66
 
-void __attribute__((noinline)) LBMK_init_stack(uint32_t max_size){
+void __attribute__((noinline,noipa)) LBMK_init_stack(uint32_t max_size){
   uint8_t stack[max_size];
   LBMK_memset_io(stack,STACK_MEASUREMENT_VAL,max_size);
 }
 
-uintptr_t __attribute__((noinline)) LBMK_measure_stack_size(uint32_t max_size){
+uintptr_t __attribute__((noinline,noipa)) LBMK_measure_stack_size(uint32_t max_size){
   uint8_t stack_top;
   uint8_t*stack = &stack_top+1;
   stack -= max_size;
@@ -133,7 +133,9 @@ bool __attribute__((noinline)) LBMK_is_within_benchmarked_func(){
   return within_benchmarked_func;
 }
 
-uint64_t __attribute__((noinline)) LBMK_timeit(uint64_t (*dut)(uintptr_t*), void*args, uint32_t*cycles){
+//noipa: with LTO, cloning this for a known dut would let the dut be inlined between the
+//timestamp reads, where its computations can move across them
+uint64_t __attribute__((noinline,noipa)) LBMK_timeit(uint64_t (*dut)(uintptr_t*), void*args, uint32_t*cycles){
   LBMK_init_heap_usage();
   LBMK_clear_caches();
   within_benchmarked_func = 1;
