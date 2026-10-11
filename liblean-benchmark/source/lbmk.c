@@ -80,13 +80,10 @@ const char*LBMK_version = xstr(GIT_VERSION);
 volatile uint64_t io_sink;
 //'touch' pointers to avoid optimization on the caller site (assuming it is called outside of this lib)
 //noipa: the caller must not see the body, otherwise LTO can prove the pointers unused
+//The body is empty on purpose: noipa alone makes the pointers escape. Writing them to io_sink would
+//pull io_sink into stub builds only, skewing RAM sizes computed as "real library - stub" by 8 bytes.
 void __attribute__((noinline,noipa)) LBMK_touch_pointers(int n, ...){
-  va_list args;
-  va_start(args, n);  
-  for (int i = 0; i < n; i++) {
-    io_sink ^= va_arg(args,uintptr_t);//not really needed, it is note safe against LTO, we would need to access all the data...
-  }
-  va_end(args);
+  (void)n;
 }
 
 uint64_t __attribute__((noinline,noipa)) donothing(uintptr_t*a){return (uint32_t)(uintptr_t)a;}
