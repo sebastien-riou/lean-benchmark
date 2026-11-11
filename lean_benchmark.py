@@ -363,12 +363,18 @@ if __name__ == '__main__':
     )    
     parser.add_argument(
         '--sync-timeout', help="maximum seconds for the lean-com handshake to complete, -1 block indefinitely", default=-1, type=float
-    )    
-    
+    )
+    parser.add_argument(
+        '--exception-wait', help="after the device reports an exception: maximum seconds to wait for its error code "
+        "line before exiting with an error, -1 block indefinitely", default=10, type=float
+    )
+
     args = parser.parse_args()
 
     if args.sync_timeout <= 0 and args.sync_timeout != -1:
         parser.error('--sync-timeout must be a positive number of seconds, or -1 to block indefinitely')
+    if args.exception_wait < 0 and args.exception_wait != -1:
+        parser.error('--exception-wait must be a number of seconds, or -1 to block indefinitely')
 
     logformat = '%(asctime)s.%(msecs)03d %(levelname)s:\t%(message)s'
     logdatefmt = '%Y-%m-%d %H:%M:%S'
@@ -384,6 +390,7 @@ if __name__ == '__main__':
         parser.print_help()
         exit(-1)
     
+    polling_port = None # the PollingPort under a lean-com link, which can bound a wait
     if args.device:
         exist1 = os.path.exists(args.device)
         time.sleep(.2)
@@ -406,6 +413,7 @@ if __name__ == '__main__':
                         
         if args.leancom:
             port = PollingPort(serial.Serial(args.device, exclusive=args.exclusive,baudrate=args.baud), what=args.device)
+            polling_port = port
             port.set_deadline(None if args.sync_timeout < 0 else args.sync_timeout)
             ser = leancom.Device(port)
             logging.info(f'{args.device}: waiting for the lean-com handshake')
@@ -507,14 +515,28 @@ if __name__ == '__main__':
             result['data'] = results_data
             results.append(result)
     except DeviceRuntimeError:
-        logging.error("Device raised an exception: press CTRL-C to terminate")
-        while(True):
-            raw = source.impl.readline()
+        # The device stops after reporting an exception: log what it prints next (crypto-benchmark prints an
+        # "Error code: 0x..." line), then fail instead of waiting for results that will not come. No pickle.
+        logging.error("Device raised an exception")
+        wait = args.exception_wait
+        if wait >= 0:
+            if polling_port is not None:
+                polling_port.set_deadline(wait)
+            elif isinstance(source.impl, serial.Serial):
+                source.impl.timeout = wait
+        while True:
             try:
-                s = raw.decode()
-                logging.error(s.strip())
-            except:
-                logging.error(raw)
+                raw = source.impl.readline()
+            except SyncTimeout:
+                logging.error(f'no error code from the device within {wait:g}s')
+                break
+            if not raw:
+                break # end of the UART log, or a raw serial port past --exception-wait
+            s = raw.decode(errors='replace').strip()
+            logging.error(s)
+            if s.startswith('Error code'):
+                break
+        sys.exit('the device raised an exception: no results')
 
     out = {'info':info,'results':results}
     if args.write_pickle != 0:
